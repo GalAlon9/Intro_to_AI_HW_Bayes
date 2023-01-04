@@ -65,6 +65,7 @@ if __name__ == "__main__":
     global bayes_network
     graph, weather, blocked_nodes = parse("input.txt")
     bayes_network = create_bayes_network(graph, weather, blocked_nodes)
+    evidence = {"W": "1", "B(2)": "1", "Ev(1)": "1"}
     # evidence = {}
     # while(True):
     #     evidence=get_action(evidence=evidence)
@@ -84,5 +85,5 @@ if __name__ == "__main__":
     #     print(evidence)
     #     if evidence == -1:
     #         break
-        
+       
     print_network(bayes_network,graph=graph)

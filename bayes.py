@@ -172,10 +172,41 @@ def print_network(bayes_network, graph):
         print_blockage(bayes_network, node)
         print_evacuees(bayes_network, node)
     
-def print_probabalistic_reasoning(bayes_network, evidence):
+def print_probabalistic_reasoning(bayes_network, evidence,graph):
     '''print the following probabilities, according to the given evidence:
     What is the probability that each of the vertices contains evacuees?
-What is the probability that each of the vertices is blocked?
-What is the distribution of the weather variable?
-What is the probability that a certain path (set of edges) is free from blockages? (Note that the distributions of blockages in vertices are NOT necessarily independent.)'''
+    What is the probability that each of the vertices is blocked?
+    What is the distribution of the weather variable?
+    What is the probability that a certain path (set of edges) is free from blockages? (Note that the distributions of blockages in vertices are NOT necessarily independent.)'''
+    query1 = []
+    for node in graph.nodes:
+        query1.append("Ev("+str(node)+")")
+
+    query2 = []
+    for node in graph.nodes:
+        query2.append("B("+str(node)+")")
+
+    query3 = ["W"]
+
+    #get path from user
+    path = input("Enter path: ")
+    path = path.split(" ")
+    path = [int(i) for i in path]
+    path_edges = []
+    for i in range(len(path)-1):
+        path_edges.append((path[i], path[i+1]))
+    query4 = []
+    for edge in path_edges:
+        query4.append("B("+str(edge[0])+","+str(edge[1])+")")
+
+    #get the probabilities of the queries
+    prob1 = prob(query1, evidence, bayes_network)
+    prob2 = prob(query2, evidence, bayes_network)
+    prob3 = prob(query3, evidence, bayes_network)
+    prob4 = prob(query4, evidence, bayes_network)
+
+    pass
+
+
+def prob(query, evidence, bayes_network):
     pass
