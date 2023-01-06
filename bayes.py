@@ -73,27 +73,51 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
         probabilities_false = {}
         # we will use a list to store the states of the breakage of the node and its neighbors
         relevant_nodes = []
-        relevant_nodes.append("B("+str(node)+")")
+        if bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"]["mild"] > 0:
+            relevant_nodes.append("B("+str(node)+")")
         for neighbor in graph.neighbors(node):
-            relevant_nodes.append("B("+str(neighbor)+")")
+            if bayes_network.nodes["B("+str(neighbor)+")"]["probabilities"]["true"]["mild"] > 0:
+                relevant_nodes.append("B("+str(neighbor)+")")
             
 
         #each node has 2 states: true or false, so we will have 2^len(relevant_nodes) possible states
         states = [bin(i)[2:].zfill(len(relevant_nodes)) for i in range(2**len(relevant_nodes))]
-        for state in states:
-            #for loop to add base cases probabilities to the table
+        if len(relevant_nodes) == 1:
+            if relevant_nodes[0] == "B("+str(node)+")":
+                probabilities_false[tuple(states[0])] = p2
+                probabilities_false[tuple(states[1])] = 1
+            else:
+                curr  = int(relevant_nodes[0][2:-1])
+                probabilities_false[tuple(states[0])] = min(1,p1*graph[node][curr]["weight"])
+                probabilities_false[tuple(states[1])] = 1
+        else:    
+            for state in states:
+                #for loop to add base cases probabilities to the table
 
-            #if the breakage of the node is true and all the breakage of the neighbors is false, the probability is p2
-            if state[0] == '1' and state[1:] == '0'*(len(relevant_nodes)-1):
-                probabilities_false[tuple(state)] = p2
+                #if the breakage of the node is true and all the breakage of the neighbors is false, the probability is p2 and the probability of the node to be broken is greater than 0
+                if state[0] == '1' and state[1:] == '0'*(len(relevant_nodes)-1):
+                    # if bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"]["mild"] > 0:
+                    probabilities_false[tuple(state)] = p2
+                    # else :
+                    #     probabilities_false[tuple(state)] = 1
+                    
+                #if the breakage of the node is false and only one neighbor is true, the probability is min(1,p1*w(i,j))
+                elif state[0] == '0' and state[1:].count('1') == 1:
+                    
+                    #get the weight of the edge between the node and the neighbor that is true
+                    for i in range(len(state)):
+                        if state[i] == '1':
+                            #check if the B(i) node is not 0
+                            # if bayes_network.nodes[relevant_nodes[i]]["probabilities"]["true"]["mild"] > 0:
+                            w = graph.edges[node, int(relevant_nodes[i][2:-1])]["weight"]
+                            # else:
+                            #     w = 0
+                    # if w == 0: probabilities_false[tuple(state)] = 1
+                    # else: 
+                    probabilities_false[tuple(state)] = min(1, p1*w)
+
+            
                 
-            #if the breakage of the node is false and only one neighbor is true, the probability is min(1,p1*w(i,j))
-            elif state[0] == '0' and state[1:].count('1') == 1:
-                #get the weight of the edge between the node and the neighbor that is true
-                for i in range(len(state)):
-                    if state[i] == '1':
-                        w = graph.edges[node, int(relevant_nodes[i][2:-1])]["weight"]
-                probabilities_false[tuple(state)] = min(1, p1*w)
             
         for state in states:
             #for loop to add the rest of the probabilities to the table
@@ -148,6 +172,19 @@ def print_weather(bayes_network: DiGraph):
         print("P("+state+") = ", bayes_network.nodes["W"]["probabilities"][state])
         
     print()
+
+def create_password(total: int):
+    #create a password that its ascii value is total
+    #use for the password ascii values between 32 and 127
+    password = ""
+    while total > 0:
+        if total >= 127:
+            password += chr(127)
+            total -= 127
+        else:
+            password += chr(total)
+            total -= total
+    return password 
     
     
 def print_blockage(bayes_network: DiGraph, node: str):
@@ -192,19 +229,7 @@ def print_probabalistic_reasoning(bayes_network, evidence,graph):
     path = input("Enter path: ")
     path = path.split(" ")
     path = [int(i) for i in path]
-    path_edges = []
-    for i in range(len(path)-1):
-        path_edges.append((path[i], path[i+1]))
-    query4 = []
-    for edge in path_edges:
-        query4.append("B("+str(edge[0])+","+str(edge[1])+")")
-
-    #get the probabilities of the queries
-    prob1 = prob(query1, evidence, bayes_network)
-    prob2 = prob(query2, evidence, bayes_network)
-    prob3 = prob(query3, evidence, bayes_network)
-    prob4 = prob(query4, evidence, bayes_network)
-
+    
     pass
 
 
