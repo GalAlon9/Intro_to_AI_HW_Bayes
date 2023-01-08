@@ -58,8 +58,8 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
         bayes_network.add_node("B("+str(node)+")", states=["true", "false"], probabilities={})
         #add to the breakage node the probabilities of each state from the dictionary this way: dictionary["node"] = x(i)
         xi = float(broken_given_weather[node])
-        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"] = {"mild": xi, "stormy": 2*xi, "extreme": 3*xi}
-        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["false"] = {"mild": 1-xi, "stormy": 1-2*xi, "extreme": 1-3*xi}
+        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"] = {"mild": xi, "['stormy']": 2*xi, "['extreme']": 3*xi}
+        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["false"] = {"mild": 1-xi, "['stormy']": 1-2*xi, "['extreme']": 1-3*xi}
         #add an edge between the weather node and the breakage node
         bayes_network.add_edge("W", "B("+str(node)+")")
 
@@ -84,12 +84,12 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
         states = [bin(i)[2:].zfill(len(relevant_nodes)) for i in range(2**len(relevant_nodes))]
         if len(relevant_nodes) == 1:
             if relevant_nodes[0] == "B("+str(node)+")":
-                probabilities_false[tuple(states[0])] = p2
-                probabilities_false[tuple(states[1])] = 1
+                probabilities_false[str(list(states[0]))] = p2
+                probabilities_false[str(list(states[1]))] = 1
             else:
                 curr  = int(relevant_nodes[0][2:-1])
-                probabilities_false[tuple(states[0])] = min(1,p1*graph[node][curr]["weight"])
-                probabilities_false[tuple(states[1])] = 1
+                probabilities_false[str(list(states[0]))] = min(1,p1*graph[node][curr]["weight"])
+                probabilities_false[str(list(states[1]))] = 1
         else:    
             for state in states:
                 #for loop to add base cases probabilities to the table
@@ -97,7 +97,7 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
                 #if the breakage of the node is true and all the breakage of the neighbors is false, the probability is p2 and the probability of the node to be broken is greater than 0
                 if state[0] == '1' and state[1:] == '0'*(len(relevant_nodes)-1):
                     # if bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"]["mild"] > 0:
-                    probabilities_false[tuple(state)] = p2
+                    probabilities_false[str(list(state))] = p2
                     # else :
                     #     probabilities_false[tuple(state)] = 1
                     
@@ -114,47 +114,57 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
                             #     w = 0
                     # if w == 0: probabilities_false[tuple(state)] = 1
                     # else: 
-                    probabilities_false[tuple(state)] = min(1, p1*w)
+                    probabilities_false[str(list(state))] = min(1, p1*w)
 
             
                 
             
         for state in states:
             #for loop to add the rest of the probabilities to the table
-            if tuple(state) not in probabilities_false:
+            if str(list(state)) not in probabilities_false:
                 #multiply the probabilities of each base case that is true in the state
                 prob = 1
                 for i in range(len(state)):
                     if state[i] == '1':
                         base_case=['0']*len(state)
                         base_case[i] = '1'
-                        prob *= probabilities_false[tuple(base_case)]
+                        base_case = ''.join(base_case)
 
-                probabilities_false[tuple(state)] = prob
+                    
+                        prob *= probabilities_false[str(list(base_case))]
+
+                probabilities_false[str(list(state))] = prob
 
 
-
+        
         #we want the probabilities to be in the format of B(i)=0, B(j)=1, B(k)=1, B(l)=1 etc.
         #so we will change the keys of the dictionary to be in this format
         # print(probabilities_false)
         new_probabilities_false = {}
         for state in probabilities_false:
-            new_state = ""
-            for i in range(len(state)):
-                new_state += relevant_nodes[i]+"="+state[i]+", "
-            new_state = new_state[:-2]
+            new_state = []
+            #state is in the format of ['0', '1', '1', '1'] we want to run over 0,1,1,1
+            
+            curr_state = state[1:-1].split(', ')
+            
+            for i in range(len(curr_state)):
+                val = curr_state[i]
+                new_state.append(relevant_nodes[i]+"="+val)
+            new_state = ', '.join(new_state)
             new_probabilities_false[new_state] = probabilities_false[state]
+        
+            
         # print("TEST")
-        # print(new_probabilities_false)
+        
 
         probabilities_false = new_probabilities_false
-
+        
         #add the probabilities to the node
-        bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["false"] = probabilities_false
+        bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["Ev("+str(node)+")=0"] = probabilities_false
         probabilities_true = {}
         for state in probabilities_false:
             probabilities_true[state] = 1-probabilities_false[state]
-        bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["true"] = probabilities_true
+        bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["Ev("+str(node)+")=1"] = probabilities_true
         #connect the node to the breakage node and all the breakage nodes of its neighbors
         for neighbor in relevant_nodes:
             bayes_network.add_edge(neighbor, "Ev("+str(node)+")")
@@ -196,10 +206,10 @@ def print_blockage(bayes_network: DiGraph, node: str):
 
 def print_evacuees(bayes_network: DiGraph, node: str):
     # print("PEOPLE IN", node[3:-1], ":")
-    for state in bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["true"]:
+    for state in bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["Ev("+str(node)+")=1"]:
         #convert the state from tuple to string in this format:('0', '1')
         temp = str(state)
-        print("P(people|"+temp+") = ", bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["true"][state])
+        print("P(people|"+temp+") = ", bayes_network.nodes["Ev("+str(node)+")"]["probabilities"]["Ev("+str(node)+")=1"][state])
     print()
 
 def print_network(bayes_network, graph):
@@ -226,12 +236,166 @@ def print_probabalistic_reasoning(bayes_network, evidence,graph):
     query3 = ["W"]
 
     #get path from user
-    path = input("Enter path: ")
-    path = path.split(" ")
+    # path = input("Enter path: ")
+    path = [1, 2, 3, 4]
+    # path = path.split(" ")
     path = [int(i) for i in path]
+
+    query4 = []
+    for i in range(len(path)-1):
+        query4.append("B("+str(path[i])+")")
     
-    pass
+    print("What is the probability that each of the vertices contains evacuees?")
+    for node in graph.nodes:
+        print("P(Ev("+str(node)+")|", evidence, ") = ", enumeration_ask(["Ev("+str(node)+")"], evidence, bayes_network))
+    print()
+
+    print("What is the probability that each of the vertices is blocked?")
+    for node in graph.nodes:
+        print("P(B("+str(node)+")|", evidence, ") = ", enumeration_ask(["B("+str(node)+")"], evidence, bayes_network))
+    print()
+
+    print("What is the distribution of the weather variable?")
+    print("P(W|", evidence, ") = ", enumeration_ask(["W"], evidence, bayes_network))
+    print()
+
+    print("What is the probability that a certain path (set of edges) is free from blockages?")
+    print("P(", query4, "|", evidence, ") = ", enumeration_ask(query4, evidence, bayes_network))
+    print()
+    
+def enumeration_all(vars,evidence,bayes_network):
+    if len(vars) == 0:
+        return 1
+    Y = vars[0]
+    parents = ""
+    for parent in bayes_network.predecessors(Y):
+        #evidence[parent] =  EV(1) = 1, EV(2) = 0, W = "stormy"
+        val = evidence[parent]
+        temp = val
+        if Y == "B":
+            temp = "W=" + val
+        if Y[0:2] == "Ev": #val is true or false, we want temp to be in this format: "B(1)='1'" or "B(1)='0'" based on val, the number is the parent = B(1)
+            if val == "true":
+                temp = "B("+str(parent)[2]+")='1'"
+            else:
+                temp = "B("+str(parent)[2]+")='0'"
+                
+                
+        print("temp:", temp)
+
+        parents += temp + ", "
+    parents = parents[:-2]
+        
+    if Y in evidence.keys():
+        
+        print("Y:", Y)
+        print('EVIDENCE:', evidence)
+        print('EVIDENCE[Y]:', evidence[Y])
+        print('PARENTS:', parents)
+        print("table: ",bayes_network.nodes[Y]["probabilities"])
+        
+        if parents == "":
+            print("P(y): ",bayes_network.nodes[Y]["probabilities"][evidence[Y]])
+            return bayes_network.nodes[Y]["probabilities"][evidence[Y]] * enumeration_all(vars[1:],evidence,bayes_network)
+        else:
+            print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][evidence[Y]][str(parents)])
+            return bayes_network.nodes[Y]["probabilities"][evidence[Y]][str(parents)] * enumeration_all(vars[1:],evidence,bayes_network)
+    else:
+        extended_evidence = evidence.copy()
+        sum = 0
+        for state in bayes_network.nodes[Y]["probabilities"]:
+            extended_evidence[Y] = state
+            print("Y:", Y)
+            print('STATE:', state)
+            print('PARENTS:', parents)
+            print("table: ",bayes_network.nodes[Y]["probabilities"])
+            print('Ext_EVIDENCE[Y]:', extended_evidence[Y])
+            #print('Evidence[Y]:', evidence[Y])
+            if parents == []:
+                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
+                sum += bayes_network.nodes[Y]["probabilities"][state] * enumeration_all(vars[1:],extended_evidence,bayes_network)
+            else:
+                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
+                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]][str(parents)])
+                sum += bayes_network.nodes[Y]["probabilities"][state][str(parents)] * enumeration_all(vars[1:],extended_evidence,bayes_network)
+        return sum
 
 
-def prob(query, evidence, bayes_network):
-    pass
+def enumeration_ask(query, evidence, bayes_network):
+    '''
+    input:
+    query: a list of strings, each string is a query variable
+    evidence: a dictionary of strings, each string is an evidence variable
+    bayes_network: a DiGraph object
+    output:
+    a distribution of the query variables
+    '''
+    # query = {B(1), B(2), B(3)}
+    # xi = {B(1)=0, B(2)=1, B(3)=1}
+
+    
+    distribution = {}
+    #iterate over all possible states of the query variables
+    for state in all_possible_states(query, bayes_network):
+        extended_evidence = evidence.copy()
+        #add the state to the evidence
+        for i in range(len(query)):
+            extended_evidence[query[i]] = state[i]
+        #we need to topological sort the evidence
+        #TODO:
+        #extended_evidence = topological_sort(extended_evidence, bayes_network)
+        #create vars : all the variables in the bayes network 
+        vars = []
+        for node in bayes_network.nodes:
+            if node.startswith("W"):
+                vars.append(node)
+        for node in bayes_network.nodes:
+            if node.startswith("B"):
+                vars.append(node)
+        for node in bayes_network.nodes:
+            if node.startswith("Ev"):
+                vars.append(node)
+        distribution[state] = enumeration_all(vars,extended_evidence,bayes_network)
+
+    #normalize the distribution
+    sum = 0
+    for state in distribution:
+        sum += distribution[state]
+    for state in distribution:
+        distribution[state] /= sum
+    
+    return distribution
+
+def all_possible_states(query, bayes_network):
+    '''
+    input:
+    query: a list of strings, each string is a query variable
+    evidence: a dictionary of strings, each string is an evidence variable
+    bayes_network: a DiGraph object
+    output:
+    a list of all possible states of the query variables
+    '''
+    if len(query) == 0:
+        return []
+
+    
+    if query[0] == "W":
+        return [["W=mild"],["W=stormy"], ["W=sunny"]]
+
+    if query[0][0] == "E":
+        return [["Ev("+query[0][3:-1]+")=0"],["Ev("+query[0][3:-1]+")=1"]]
+
+    # query is the type of {B(1), B(2), B(3)}
+    # than we need to return all the possible states of the query variables
+    # like [[0,0,0],[0,0,1],[0,1,0],[0,1,1],[1,0,0],[1,0,1],[1,1,0],[1,1,1]]
+    if query[0][0] == "B":
+        states = [bin(i)[2:].zfill(len(query)) for i in range(2**len(query))]
+        for i in range(len(states)):
+            states[i] = "B("+query[0][2:-1]+")="+states[i]
+        return states
+    
+        
+
+       
+
+
