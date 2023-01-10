@@ -1,0 +1,17 @@
+Welcome
+
+To run the program you need to chose what environment to run, the environment is based on the input file.
+Currently input.txt has a default environment, but you can change it to any of your choosing (as long as it is in the correct format, the same one currently used).
+
+To set the evidence change line 70 in main to your desired evidence 
+
+(keep in this format, for example: "evidence = {"Ev(1)": "1", "W": "mild", "B(2)" : "0"}").
+
+and then run the program with the command:
+
+    python3 main.py
+
+
+
+
+Enjoy! :)

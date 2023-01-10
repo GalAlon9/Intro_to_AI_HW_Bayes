@@ -58,8 +58,8 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
         bayes_network.add_node("B("+str(node)+")", states=["true", "false"], probabilities={})
         #add to the breakage node the probabilities of each state from the dictionary this way: dictionary["node"] = x(i)
         xi = float(broken_given_weather[node])
-        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"] = {"mild": xi, "['stormy']": 2*xi, "['extreme']": 3*xi}
-        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["false"] = {"mild": 1-xi, "['stormy']": 1-2*xi, "['extreme']": 1-3*xi}
+        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["B("+str(node)+")=1"] = {"mild": xi, 'stormy': 2*xi, 'extreme': 3*xi}
+        bayes_network.nodes["B("+str(node)+")"]["probabilities"]["B("+str(node)+")=0"] = {"mild": 1-xi, "stormy": 1-2*xi, "extreme": 1-3*xi}
         #add an edge between the weather node and the breakage node
         bayes_network.add_edge("W", "B("+str(node)+")")
 
@@ -73,11 +73,13 @@ def create_bayes_network(graph: Graph,weather:dict,broken_given_weather:dict) ->
         probabilities_false = {}
         # we will use a list to store the states of the breakage of the node and its neighbors
         relevant_nodes = []
-        if bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"]["mild"] > 0:
+        if bayes_network.nodes["B("+str(node)+")"]["probabilities"]["B("+str(node)+")=1"]['mild'] > 0:
             relevant_nodes.append("B("+str(node)+")")
         for neighbor in graph.neighbors(node):
-            if bayes_network.nodes["B("+str(neighbor)+")"]["probabilities"]["true"]["mild"] > 0:
-                relevant_nodes.append("B("+str(neighbor)+")")
+            #print(bayes_network.nodes["B("+str(neighbor)+")"]["probabilities"])
+            # if bayes_network.nodes["B("+str(neighbor)+")"]["probabilities"]["B("+str(neighbor)+")=1"]['mild'] > 0:
+            #     relevant_nodes.append("B("+str(neighbor)+")")
+            relevant_nodes.append("B("+str(neighbor)+")")
             
 
         #each node has 2 states: true or false, so we will have 2^len(relevant_nodes) possible states
@@ -200,8 +202,8 @@ def create_password(total: int):
 def print_blockage(bayes_network: DiGraph, node: str):
     # print("BREAKAGE OF", node[2:-1], ":")
     #print in the format of P(blocked|stormy) = 0.4
-    for state in bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"]:
-        print("P(blocked|"+state+") = ", bayes_network.nodes["B("+str(node)+")"]["probabilities"]["true"][state])    
+    for state in bayes_network.nodes["B("+str(node)+")"]["probabilities"]["B("+str(node)+")=1"]:
+        print("P(blocked|"+state+") = ", bayes_network.nodes["B("+str(node)+")"]["probabilities"]["B("+str(node)+")=1"][state])    
     print()
 
 def print_evacuees(bayes_network: DiGraph, node: str):
@@ -236,8 +238,8 @@ def print_probabalistic_reasoning(bayes_network, evidence,graph):
     query3 = ["W"]
 
     #get path from user
-    # path = input("Enter path: ")
-    path = [1, 2, 3, 4]
+    #path = input("Enter path: ")
+    path = [ 2, 3, 4]
     # path = path.split(" ")
     path = [int(i) for i in path]
 
@@ -247,20 +249,32 @@ def print_probabalistic_reasoning(bayes_network, evidence,graph):
     
     print("What is the probability that each of the vertices contains evacuees?")
     for node in graph.nodes:
-        print("P(Ev("+str(node)+")|", evidence, ") = ", enumeration_ask(["Ev("+str(node)+")"], evidence, bayes_network))
+        print("P(Ev("+str(node)+") |", evidence, ") = ", enumeration_ask(["Ev("+str(node)+")"], evidence, bayes_network)["['Ev("+str(node)+")=1']"])
     print()
 
     print("What is the probability that each of the vertices is blocked?")
     for node in graph.nodes:
-        print("P(B("+str(node)+")|", evidence, ") = ", enumeration_ask(["B("+str(node)+")"], evidence, bayes_network))
+        print("P(B("+str(node)+") |", evidence, ") = ", enumeration_ask(["B("+str(node)+")"], evidence, bayes_network)["['B("+str(node)+")=1']"])
     print()
 
     print("What is the distribution of the weather variable?")
-    print("P(W|", evidence, ") = ", enumeration_ask(["W"], evidence, bayes_network))
+    if "W" in evidence:
+        print("P(W |", evidence, ") = ", {w : 1 if evidence['W']==w else 0 for w in ["mild","stormy","extreme"]})
+    else:
+        print("P(W |", evidence, ") = ", enumeration_ask(["W"], evidence, bayes_network))
     print()
 
     print("What is the probability that a certain path (set of edges) is free from blockages?")
-    print("P(", query4, "|", evidence, ") = ", enumeration_ask(query4, evidence, bayes_network))
+    query4_total = 1
+    extended_evidence = evidence.copy()
+    for query in query4:
+        distribution=enumeration_ask([query], evidence, bayes_network)
+        #print("P(", [query], "|", evidence, ") = ", distribution)
+        #multiply by the probability of the node not being blocked
+        query4_total *= distribution.get(str([query+"=0"]))
+        #add the query to the evidence
+        extended_evidence[query] = "0"
+    print("P(",path," is free from blockages |", evidence, ") = ", query4_total)
     print()
     
 def enumeration_all(vars,evidence,bayes_network):
@@ -275,48 +289,54 @@ def enumeration_all(vars,evidence,bayes_network):
         if Y == "B":
             temp = "W=" + val
         if Y[0:2] == "Ev": #val is true or false, we want temp to be in this format: "B(1)='1'" or "B(1)='0'" based on val, the number is the parent = B(1)
-            if val == "true":
+            if val == "1":
                 temp = "B("+str(parent)[2]+")='1'"
             else:
                 temp = "B("+str(parent)[2]+")='0'"
                 
                 
-        print("temp:", temp)
+        #print("temp:", temp)
 
         parents += temp + ", "
     parents = parents[:-2]
         
     if Y in evidence.keys():
-        
-        print("Y:", Y)
-        print('EVIDENCE:', evidence)
-        print('EVIDENCE[Y]:', evidence[Y])
-        print('PARENTS:', parents)
-        print("table: ",bayes_network.nodes[Y]["probabilities"])
+        # print("in evidence")
+        # print("Y:", Y)
+        # print('EVIDENCE:', evidence)
+        # print('EVIDENCE[Y]:', evidence[Y])
+        # print('PARENTS:', parents)
+        # print("table: ",bayes_network.nodes[Y]["probabilities"])
         
         if parents == "":
-            print("P(y): ",bayes_network.nodes[Y]["probabilities"][evidence[Y]])
+            #print("P(y): ",bayes_network.nodes[Y]["probabilities"][evidence[Y]])
             return bayes_network.nodes[Y]["probabilities"][evidence[Y]] * enumeration_all(vars[1:],evidence,bayes_network)
         else:
-            print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][evidence[Y]][str(parents)])
-            return bayes_network.nodes[Y]["probabilities"][evidence[Y]][str(parents)] * enumeration_all(vars[1:],evidence,bayes_network)
+            # print('P1: ',bayes_network.nodes[Y]["probabilities"][Y+'='+evidence[Y]])
+            # print('P2: ',str(parents))
+            # print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][Y+'='+evidence[Y]][str(parents)])
+            return bayes_network.nodes[Y]["probabilities"][Y+'='+evidence[Y]][str(parents)] * enumeration_all(vars[1:],evidence,bayes_network)
     else:
-        extended_evidence = evidence.copy()
         sum = 0
         for state in bayes_network.nodes[Y]["probabilities"]:
-            extended_evidence[Y] = state
-            print("Y:", Y)
-            print('STATE:', state)
-            print('PARENTS:', parents)
-            print("table: ",bayes_network.nodes[Y]["probabilities"])
-            print('Ext_EVIDENCE[Y]:', extended_evidence[Y])
-            #print('Evidence[Y]:', evidence[Y])
-            if parents == []:
-                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
+            #add the state to a copy of the evidence
+            extended_evidence = evidence.copy()
+            if len(state.split('='))>1:
+                #state is in format e.x B(1)=1, so we will retrieve the 1
+                extended_evidence[Y] = state.split('=')[1]
+            else:
+                extended_evidence[Y] = state
+            # print("Y:", Y)
+            # print('STATE:', state)
+            # print('PARENTS:', parents)
+            # print("table: ",bayes_network.nodes[Y]["probabilities"])
+            # print('Ext_EVIDENCE[Y]:', extended_evidence[Y])
+            if parents == [] or parents == "":
+                #print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
                 sum += bayes_network.nodes[Y]["probabilities"][state] * enumeration_all(vars[1:],extended_evidence,bayes_network)
             else:
-                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
-                print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]][str(parents)])
+                #print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]])
+                #print("P(y|Pa(Y)): ",bayes_network.nodes[Y]["probabilities"][extended_evidence[Y]][str(parents)])
                 sum += bayes_network.nodes[Y]["probabilities"][state][str(parents)] * enumeration_all(vars[1:],extended_evidence,bayes_network)
         return sum
 
@@ -330,17 +350,46 @@ def enumeration_ask(query, evidence, bayes_network):
     output:
     a distribution of the query variables
     '''
+
+    distribution = {}
+
     # query = {B(1), B(2), B(3)}
     # xi = {B(1)=0, B(2)=1, B(3)=1}
+    #check if the evidence includes the query than the probability is 1 or 0
+    #distribution is in this format {"['B(1)=0']": 0.6, "['B(1)=1']": 0.4000000000000001}
+    for q in query:
+        #q is str int the format of "key" : "value"
+        if q in evidence.keys():
+            
+            if evidence[q] == "1":
+                distribution["['"+q+"=1']"] = 1
+                distribution["['"+q+"=0']"] = 0
+            else:
+                distribution["['"+q+"=1']"] = 0
+                distribution["['"+q+"=0']"] = 1
 
+            
+                
+
+                
     
-    distribution = {}
+    if distribution != {}:
+        print ("distribution:", distribution)
+        return distribution
+        
+    
+    
     #iterate over all possible states of the query variables
     for state in all_possible_states(query, bayes_network):
+        #if state is not list, make it a list
+        if not isinstance(state, list):
+            state = [state]
+        #print ("state:", state)
         extended_evidence = evidence.copy()
         #add the state to the evidence
+        #print("query:", query)
         for i in range(len(query)):
-            extended_evidence[query[i]] = state[i]
+            extended_evidence[state[i].split('=')[0]] = state[i].split('=')[1]
         #we need to topological sort the evidence
         #TODO:
         #extended_evidence = topological_sort(extended_evidence, bayes_network)
@@ -355,14 +404,16 @@ def enumeration_ask(query, evidence, bayes_network):
         for node in bayes_network.nodes:
             if node.startswith("Ev"):
                 vars.append(node)
-        distribution[state] = enumeration_all(vars,extended_evidence,bayes_network)
+        # print("vars:", vars)
+        # print("extended_evidence:", extended_evidence)
+        distribution[str(state)] = enumeration_all(vars,extended_evidence,bayes_network)
 
     #normalize the distribution
     sum = 0
     for state in distribution:
-        sum += distribution[state]
+        sum += distribution[str(state)]
     for state in distribution:
-        distribution[state] /= sum
+        distribution[str(state)] /= sum
     
     return distribution
 
@@ -380,7 +431,7 @@ def all_possible_states(query, bayes_network):
 
     
     if query[0] == "W":
-        return [["W=mild"],["W=stormy"], ["W=sunny"]]
+        return [["W=mild"],["W=stormy"], ["W=extreme"]]
 
     if query[0][0] == "E":
         return [["Ev("+query[0][3:-1]+")=0"],["Ev("+query[0][3:-1]+")=1"]]

@@ -43,7 +43,7 @@ def get_evidence(graph: Graph,evidence: dict):
     return evidence
                 
     
-def get_action(evidence: dict):
+def get_action(evidence: dict, graph: Graph):
     print("Choose the action:")
     print("1. Add evidence")
     print("2. Reset evidence")
@@ -55,7 +55,7 @@ def get_action(evidence: dict):
     elif option == 2:
         evidence = {}
     elif option == 3:
-        print_probabalistic_reasoning(bayes_network, evidence)
+        print_probabalistic_reasoning(bayes_network, evidence, graph=graph)
     elif option == 4:
         return -1
     return evidence
@@ -65,10 +65,12 @@ if __name__ == "__main__":
     global bayes_network
     graph, weather, blocked_nodes = parse("input.txt")
     bayes_network = create_bayes_network(graph, weather, blocked_nodes)
-    evidence = {"W": "mild"}
+    
+    print_network(bayes_network,graph=graph)
+    evidence = {"Ev(1)": "1", "W": "mild"}
     # evidence = {}
     # while(True):
-    #     evidence=get_action(evidence=evidence)
+    #     evidence=get_action(evidence=evidence, graph=graph)
     #     sorted_evidence={}
     #     #topological sort of the evidence
     #     for key, value in evidence.items():
@@ -86,5 +88,6 @@ if __name__ == "__main__":
     #     if evidence == -1:
     #         break
        
-    print_network(bayes_network,graph=graph)
     print_probabalistic_reasoning(bayes_network, evidence, graph=graph)
+    # query = ["Ev(1)"]
+    # print(enumeration_ask(query, evidence, bayes_network))
